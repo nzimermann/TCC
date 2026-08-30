@@ -39,16 +39,25 @@ def parse_source(value):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--weights", type=Path, default=DEFAULT_WEIGHTS)
-    parser.add_argument("--source", type=parse_source, default=0, help="índice da webcam (0, 1, ...) ou caminho de vídeo/URL")
+    parser.add_argument(
+        "--source",
+        type=parse_source,
+        default=0,
+        help="índice da webcam (0, 1, ...) ou caminho de vídeo/URL",
+    )
     parser.add_argument("--conf", type=float, default=0.4)
     parser.add_argument(
-        "--imgsz", type=int, default=640,
+        "--imgsz",
+        type=int,
+        default=640,
         help="960 casa com o treino (configs/train.yaml) e deve detectar melhor, mas é mais lento no CPU",
     )
     args = parser.parse_args()
 
     if not args.weights.exists():
-        raise RuntimeError(f"pesos não encontrados: {args.weights} — rode o Passo 7 (export_model.py) primeiro.")
+        raise RuntimeError(
+            f"pesos não encontrados: {args.weights} — rode o Passo 7 (export_model.py) primeiro."
+        )
 
     print(f"Pesos: {args.weights}")
     print(
@@ -74,19 +83,41 @@ def main():
                 print("Fonte de vídeo terminou ou falhou ao ler o frame.")
                 break
 
-            results = model.predict(frame, conf=args.conf, imgsz=args.imgsz, verbose=False)[0]
-
-            for box in results.boxes:
-                xmin, ymin, xmax, ymax = map(int, box.xyxy[0].tolist())
-                conf = float(box.conf[0])
-                cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), BOX_COLOR, 2)
-                label = f"placa {conf:.2f}"
-                cv2.putText(frame, label, (xmin, max(0, ymin - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, BOX_COLOR, 2)
+            predictions = model(frame, conf=args.conf, imgsz=args.imgsz, verbose=False)
+            result = (
+                predictions[0]
+                if isinstance(predictions, (list, tuple))
+                else predictions
+            )
+            boxes = getattr(result, "boxes", None)
+            if boxes is not None:
+                for box in boxes:
+                    xmin, ymin, xmax, ymax = map(int, box.xyxy[0].tolist())
+                    conf = float(box.conf[0])
+                    cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), BOX_COLOR, 2)
+                    label = f"placa {conf:.2f}"
+                    cv2.putText(
+                        frame,
+                        label,
+                        (xmin, max(0, ymin - 8)),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        BOX_COLOR,
+                        2,
+                    )
 
             now = time.time()
             fps = 0.9 * fps + 0.1 * (1.0 / max(now - prev_t, 1e-6))
             prev_t = now
-            cv2.putText(frame, f"{fps:.1f} FPS", (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, TEXT_COLOR, 2)
+            cv2.putText(
+                frame,
+                f"{fps:.1f} FPS",
+                (10, 25),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                TEXT_COLOR,
+                2,
+            )
 
             cv2.imshow("Detector de placa - YOLO11n", frame)
             key = cv2.waitKey(1) & 0xFF
