@@ -92,8 +92,14 @@ def main():
     # sanity check: no group (camera) split across more than one partition
     seen = set()
     for split in SPLIT_NAMES:
-        split_keys = {f"cam_{data[name].get('cam')}" if data[name].get("cam") is not None else f"single_{name}"
-                      for name in assignment[split]}
+        split_keys = {
+            (
+                f"cam_{data[name].get('cam')}"
+                if data[name].get("cam") is not None
+                else f"single_{name}"
+            )
+            for name in assignment[split]
+        }
         overlap = seen & split_keys
         assert not overlap, f"leakage detected, groups in >1 split: {overlap}"
         seen |= split_keys
@@ -105,7 +111,9 @@ def main():
     lines = ["# Split treino/val/teste (por câmera)\n"]
     lines.append(f"- Seed: {args.seed}")
     lines.append(f"- Proporções alvo: {ratios}")
-    lines.append(f"- Total de imagens (após filtro do Passo 2): {sum(len(v) for v in assignment.values())}")
+    lines.append(
+        f"- Total de imagens (após filtro do Passo 2): {sum(len(v) for v in assignment.values())}"
+    )
     lines.append("")
     for split in SPLIT_NAMES:
         imgs = assignment[split]
@@ -113,16 +121,24 @@ def main():
         n_cams = len({k for k in cams_per_split[split] if not k.startswith("single_")})
         n_null = sum(1 for k in cams_per_split[split] if k.startswith("single_"))
         cam_sizes = sorted(
-            (len(groups[k]) for k in cams_per_split[split] if not k.startswith("single_")),
+            (
+                len(groups[k])
+                for k in cams_per_split[split]
+                if not k.startswith("single_")
+            ),
             reverse=True,
         )
         largest_cam_share = (cam_sizes[0] / len(imgs)) if imgs and cam_sizes else 0.0
         lines.append(f"## {split}")
-        lines.append(f"- Imagens: {len(imgs)} ({len(imgs) / sum(len(v) for v in assignment.values()):.1%})")
+        lines.append(
+            f"- Imagens: {len(imgs)} ({len(imgs) / sum(len(v) for v in assignment.values()):.1%})"
+        )
         lines.append(f"- Placas: {n_anns}")
         lines.append(f"- Câmeras distintas: {n_cams}")
         lines.append(f"- Imagens com cam=null incluídas: {n_null}")
-        lines.append(f"- Maior câmera do split: {cam_sizes[0] if cam_sizes else 0} imagens ({largest_cam_share:.1%} do split)")
+        lines.append(
+            f"- Maior câmera do split: {cam_sizes[0] if cam_sizes else 0} imagens ({largest_cam_share:.1%} do split)"
+        )
         lines.append("")
 
     args.report.parent.mkdir(parents=True, exist_ok=True)

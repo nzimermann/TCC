@@ -145,22 +145,35 @@ def report_result(model):
     if best_pt.exists():
         print(f"\nOK — modelo salvo em: {best_pt}")
     else:
-        print(f"\n[aviso] treino terminou mas não encontrei {best_pt} — confira {save_dir}")
+        print(
+            f"\n[aviso] treino terminou mas não encontrei {best_pt} — confira {save_dir}"
+        )
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--smoke-test", action="store_true", default=SMOKE_TEST)
-    parser.add_argument("--n", type=int, default=SMOKE_TEST_N_IMAGES, help="imagens no smoke test")
-    parser.add_argument("--smoke-epochs", type=int, default=SMOKE_TEST_EPOCHS, help="épocas no smoke test")
     parser.add_argument(
-        "--live-copy-dir", type=Path, default=None,
+        "--n", type=int, default=SMOKE_TEST_N_IMAGES, help="imagens no smoke test"
+    )
+    parser.add_argument(
+        "--smoke-epochs",
+        type=int,
+        default=SMOKE_TEST_EPOCHS,
+        help="épocas no smoke test",
+    )
+    parser.add_argument(
+        "--live-copy-dir",
+        type=Path,
+        default=None,
         help="também copia last.pt/best.pt pra essa pasta a cada época (ex: /kaggle/working/checkpoints)",
     )
     parser.add_argument(
-        "--resume", type=Path, default=None,
+        "--resume",
+        type=Path,
+        default=None,
         help="continua um treino interrompido a partir do last.pt dele (precisa da pasta do run inteira, "
-             "com o args.yaml do lado — não só o .pt sozinho). Ignora --smoke-test e configs/train.yaml.",
+        "com o args.yaml do lado — não só o .pt sozinho). Ignora --smoke-test e configs/train.yaml.",
     )
     args = parser.parse_args()
 
@@ -183,10 +196,14 @@ def main():
                 f"{args.resume} já é de um treino que completou todas as épocas (nada a retomar). "
                 "Isso não é um checkpoint 'no meio do treino' - confira se é o arquivo certo."
             )
-        print(f"\n*** RETOMANDO treino a partir de: {args.resume} (parou na época {ckpt['epoch'] + 1}) ***\n")
+        print(
+            f"\n*** RETOMANDO treino a partir de: {args.resume} (parou na época {ckpt['epoch'] + 1}) ***\n"
+        )
 
         model = YOLO(str(args.resume))
-        model.add_callback("on_model_save", make_checkpoint_callback(args.live_copy_dir))
+        model.add_callback(
+            "on_model_save", make_checkpoint_callback(args.live_copy_dir)
+        )
         # resume must be the checkpoint PATH (str), not the bare bool True -
         # passing True makes Ultralytics search for "the latest run" via its
         # own heuristic instead of using this specific checkpoint.

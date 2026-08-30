@@ -22,7 +22,9 @@ DEFAULT_OUTPUT = REPO_ROOT / "models" / "plate_detector.pt"
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--weights", required=True, help="ex: runs/detect/full_run/weights/best.pt")
+    parser.add_argument(
+        "--weights", required=True, help="ex: runs/detect/full_run/weights/best.pt"
+    )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     args = parser.parse_args()
 

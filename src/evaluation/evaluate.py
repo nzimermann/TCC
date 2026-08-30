@@ -78,7 +78,7 @@ def match_boxes(gt_boxes, pred_boxes, iou_threshold=IOU_THRESHOLD):
             v = iou(gt, pred_boxes[j])
             if v > best_iou:
                 best_iou, best_j = v, j
-        if best_iou >= iou_threshold:
+        if best_iou >= iou_threshold and best_j is not None:
             matched_gt.add(i)
             unmatched_preds.remove(best_j)
     return matched_gt, len(unmatched_preds)
@@ -98,7 +98,13 @@ def run_official_val(weights, batch):
     --limit is set (see main()) since it always uses the whole split
     regardless of a subset - not meant for the quick debug path."""
     model = YOLO(weights)
-    metrics = model.val(data=str(DATA_YAML), split="test", project=str(RUNS_DIR), name="eval_test", batch=batch)
+    metrics = model.val(
+        data=str(DATA_YAML),
+        split="test",
+        project=str(RUNS_DIR),
+        name="eval_test",
+        batch=batch,
+    )
     return model, {
         "precision": float(metrics.box.mp),
         "recall": float(metrics.box.mr),
@@ -118,10 +124,17 @@ def run_subgroup_eval(model, test_names, all_data, conf, batch, limit):
         anns = ann.get("anns", [])
         boxes = [xy_to_bbox(a["xy"]) for a in anns]
         legs = [a.get("leg") for a in anns]
-        gt_by_name[name] = {"boxes": boxes, "legs": legs, "rain": bool(ann.get("rain")), "time": ann.get("time")}
+        gt_by_name[name] = {
+            "boxes": boxes,
+            "legs": legs,
+            "rain": bool(ann.get("rain")),
+            "time": ann.get("time"),
+        }
 
     image_paths = [str(IMAGES_DIR / name) for name in test_names]
-    results_stream = model.predict(source=image_paths, conf=conf, batch=batch, stream=True, verbose=False)
+    results_stream = model.predict(
+        source=image_paths, conf=conf, batch=batch, stream=True, verbose=False
+    )
 
     preds_by_name = {}
     dims_by_name = {}
@@ -213,10 +226,17 @@ def recall_only(counts):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--weights", required=True, help="ex: runs/detect/full_run/weights/best.pt")
+    parser.add_argument(
+        "--weights", required=True, help="ex: runs/detect/full_run/weights/best.pt"
+    )
     parser.add_argument("--conf", type=float, default=CONF_THRESHOLD)
     parser.add_argument("--batch", type=int, default=16)
-    parser.add_argument("--limit", type=int, default=None, help="avaliar só as N primeiras imagens do test (debug)")
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="avaliar só as N primeiras imagens do test (debug)",
+    )
     args = parser.parse_args()
 
     weights = Path(args.weights)
@@ -231,26 +251,36 @@ def main():
 
     print(f"Pesos: {weights}")
     if args.limit:
-        print(f"--limit {args.limit}: pulando o val() oficial (ele sempre roda no split inteiro) e indo direto pro subgrupo.")
+        print(
+            f"--limit {args.limit}: pulando o val() oficial (ele sempre roda no split inteiro) e indo direto pro subgrupo."
+        )
         model = YOLO(str(weights))
         official = None
     else:
-        print(f"Rodando val() oficial do Ultralytics no split de teste ({len(test_names)} imagens)...")
+        print(
+            f"Rodando val() oficial do Ultralytics no split de teste ({len(test_names)} imagens)..."
+        )
         model, official = run_official_val(str(weights), args.batch)
 
     n_eval = len(test_names) if not args.limit else min(args.limit, len(test_names))
-    print(f"\nRodando avaliação por subgrupo (rain/time/tamanho/legibilidade) em {n_eval} imagens, IoU>={IOU_THRESHOLD}, conf>={args.conf}...")
+    print(
+        f"\nRodando avaliação por subgrupo (rain/time/tamanho/legibilidade) em {n_eval} imagens, IoU>={IOU_THRESHOLD}, conf>={args.conf}..."
+    )
     overall, subgroups, size_groups, leg_groups, n_used = run_subgroup_eval(
         model, test_names, all_data, args.conf, args.batch, args.limit
     )
 
     lines = ["# Avaliação no split de teste\n"]
     lines.append(f"- Pesos: `{weights}`")
-    lines.append(f"- Imagens no split de teste: {len(test_names)} (avaliadas nesta rodada: {n_used})\n")
+    lines.append(
+        f"- Imagens no split de teste: {len(test_names)} (avaliadas nesta rodada: {n_used})\n"
+    )
 
     lines.append("## Métricas oficiais (Ultralytics `model.val(split='test')`)")
     if official is None:
-        lines.append("- Pulado (rodando com `--limit`, é só o debug rápido por subgrupo).\n")
+        lines.append(
+            "- Pulado (rodando com `--limit`, é só o debug rápido por subgrupo).\n"
+        )
     else:
         lines.append(f"- Precision: {official['precision']:.3f}")
         lines.append(f"- Recall: {official['recall']:.3f}")
@@ -258,7 +288,9 @@ def main():
         lines.append(f"- mAP50-95: {official['map50_95']:.3f}\n")
 
     p, r = precision_recall(overall)
-    lines.append(f"## Checagem cruzada (matching por IoU>={IOU_THRESHOLD}, conf>={args.conf})")
+    lines.append(
+        f"## Checagem cruzada (matching por IoU>={IOU_THRESHOLD}, conf>={args.conf})"
+    )
     lines.append(f"- TP={overall['tp']} FP={overall['fp']} FN={overall['fn']}")
     lines.append(f"- Precision: {p:.3f}  Recall: {r:.3f}\n")
 
@@ -268,7 +300,9 @@ def main():
     for key in ("rain=não", "rain=sim"):
         c = subgroups[key]
         p, r = precision_recall(c)
-        lines.append(f"| {key} | {c['n_imgs']} | {c['tp']} | {c['fp']} | {c['fn']} | {p:.3f} | {r:.3f} |")
+        lines.append(
+            f"| {key} | {c['n_imgs']} | {c['tp']} | {c['fp']} | {c['fn']} | {p:.3f} | {r:.3f} |"
+        )
     lines.append("")
 
     lines.append("## Por período do dia")
@@ -277,11 +311,15 @@ def main():
     for key in ("time=morning", "time=afternoon", "time=evening", "time=night"):
         c = subgroups[key]
         p, r = precision_recall(c)
-        lines.append(f"| {key} | {c['n_imgs']} | {c['tp']} | {c['fp']} | {c['fn']} | {p:.3f} | {r:.3f} |")
+        lines.append(
+            f"| {key} | {c['n_imgs']} | {c['tp']} | {c['fp']} | {c['fn']} | {p:.3f} | {r:.3f} |"
+        )
     lines.append("")
 
     lines.append(f"## Por tamanho da placa (área bbox/imagem — cortes: {SIZE_CUTOFFS})")
-    lines.append("- Sem coluna de precision/FP aqui: falso positivo não corresponde a nenhuma placa real, então não tem \"tamanho\" próprio.")
+    lines.append(
+        '- Sem coluna de precision/FP aqui: falso positivo não corresponde a nenhuma placa real, então não tem "tamanho" próprio.'
+    )
     lines.append("| Grupo | TP | FN | Recall |")
     lines.append("|---|---|---|---|")
     for key in ("placa pequena", "placa média", "placa grande"):
@@ -290,8 +328,12 @@ def main():
     lines.append("")
 
     lines.append("## Por legibilidade da placa (`leg` do dataset original)")
-    lines.append("- `leg=0` (Illegible) não aparece: o Passo 2 já descartou toda imagem com alguma placa ilegível.")
-    lines.append("- Mesma ressalva do tamanho: sem precision/FP, falso positivo não tem legibilidade própria.")
+    lines.append(
+        "- `leg=0` (Illegible) não aparece: o Passo 2 já descartou toda imagem com alguma placa ilegível."
+    )
+    lines.append(
+        "- Mesma ressalva do tamanho: sem precision/FP, falso positivo não tem legibilidade própria."
+    )
     lines.append("| Grupo | TP | FN | Recall |")
     lines.append("|---|---|---|---|")
     for key in ("leg=1 (Poor)", "leg=2 (Good)", "leg=3 (Perfect)"):
