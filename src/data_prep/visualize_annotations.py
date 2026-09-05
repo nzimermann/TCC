@@ -29,9 +29,9 @@ from pathlib import Path
 import cv2
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-ANNOTATIONS_PATH = REPO_ROOT / "data" / "annotations_v2.json"
-IMAGES_DIR = REPO_ROOT / "data" / "images"
-OUTPUT_DIR = REPO_ROOT / "reports" / "bbox_check"
+ANNOTATIONS_PATH = REPO_ROOT / "data" / "raw" / "annotations_v2.json"
+IMAGES_DIR = REPO_ROOT / "data" / "raw" / "images"
+OUTPUT_DIR = REPO_ROOT / "outputs" / "reports" / "bbox_check"
 
 LEG_LABELS = {0: "Illegible", 1: "Poor", 2: "Good", 3: "Perfect"}
 LEG_COLORS = {  # BGR, since OpenCV draws in BGR not RGB

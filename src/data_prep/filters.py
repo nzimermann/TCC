@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-ANNOTATIONS_PATH = REPO_ROOT / "data" / "annotations_v2.json"
+ANNOTATIONS_PATH = REPO_ROOT / "data" / "raw" / "annotations_v2.json"
 
 ILLEGIBLE_LEG = 0
 

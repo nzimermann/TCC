@@ -1,6 +1,6 @@
 data/
-dataset_yolo/
-runs/
+outputs/runs/
+assets/
 *.pt
 
 # Byte-compiled / optimized / DLL files

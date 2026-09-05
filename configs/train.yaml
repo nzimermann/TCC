@@ -1,14 +1,17 @@
 # Hiperparâmetros do treino "de verdade" (dataset completo — roda no Kaggle/Colab).
 # Usado por src/training/train.py quando NÃO está em modo smoke test.
 # imgsz=960 (não o padrão 640): placas ocupam ~0.3% da área da imagem em
-# mediana (ver reports/eda_summary.md) — objeto pequeno precisa de imgsz maior.
+# mediana (ver outputs/reports/eda_summary.md) — objeto pequeno precisa de imgsz maior.
 #
 # epochs=80 (não 100): uma tentativa real no Kaggle T4 processou 93 épocas em
 # ~12h antes de bater no limite de sessão (~7-8 min/época) — 100 não cabia
 # com folga. Rode o smoke test do notebooks/kaggle_train.ipynb primeiro pra
 # medir o tempo/época de verdade na sua sessão e ajustar este número com
 # margem (deixe ~1h de folga pra setup + validação final).
-model: yolo11n.pt
+#
+# Caminho relativo à raiz do repo (src/training/train.py resolve como
+# REPO_ROOT / model) - não ao diretório de onde o script é chamado.
+model: weights/yolo11n.pt
 imgsz: 960
 epochs: 80
 batch: 16

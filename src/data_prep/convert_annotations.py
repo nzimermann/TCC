@@ -28,10 +28,10 @@ import struct
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-ANNOTATIONS_PATH = REPO_ROOT / "data" / "annotations_v2.json"
-IMAGES_DIR = REPO_ROOT / "data" / "images"
-SPLITS_PATH = REPO_ROOT / "dataset_yolo" / "splits.json"
-OUT_DIR = REPO_ROOT / "dataset_yolo"
+ANNOTATIONS_PATH = REPO_ROOT / "data" / "raw" / "annotations_v2.json"
+IMAGES_DIR = REPO_ROOT / "data" / "raw" / "images"
+SPLITS_PATH = REPO_ROOT / "data" / "yolo" / "splits.json"
+OUT_DIR = REPO_ROOT / "data" / "yolo"
 
 CLASS_ID = 0  # single class
 CLASS_NAME = "placa"

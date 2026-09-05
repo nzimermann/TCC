@@ -32,8 +32,8 @@ from pathlib import Path
 from filters import load_filtered_annotations
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_OUTPUT = REPO_ROOT / "dataset_yolo" / "splits.json"
-DEFAULT_REPORT = REPO_ROOT / "reports" / "split_summary.md"
+DEFAULT_OUTPUT = REPO_ROOT / "data" / "yolo" / "splits.json"
+DEFAULT_REPORT = REPO_ROOT / "outputs" / "reports" / "split_summary.md"
 
 SPLIT_NAMES = ("train", "val", "test")
 

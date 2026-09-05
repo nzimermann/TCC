@@ -21,10 +21,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-ANNOTATIONS_PATH = REPO_ROOT / "data" / "annotations_v2.json"
-IMAGES_DIR = REPO_ROOT / "data" / "images"
-FIGURES_DIR = REPO_ROOT / "reports" / "figures"
-SUMMARY_PATH = REPO_ROOT / "reports" / "eda_summary.md"
+ANNOTATIONS_PATH = REPO_ROOT / "data" / "raw" / "annotations_v2.json"
+IMAGES_DIR = REPO_ROOT / "data" / "raw" / "images"
+FIGURES_DIR = REPO_ROOT / "outputs" / "reports" / "figures"
+SUMMARY_PATH = REPO_ROOT / "outputs" / "reports" / "eda_summary.md"
 
 LEG_LABELS = {0: "Illegible", 1: "Poor", 2: "Good", 3: "Perfect"}
 

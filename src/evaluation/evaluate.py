@@ -26,12 +26,13 @@ from pathlib import Path
 from ultralytics import YOLO
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-ANNOTATIONS_PATH = REPO_ROOT / "data" / "annotations_v2.json"
-IMAGES_DIR = REPO_ROOT / "data" / "images"
-SPLITS_PATH = REPO_ROOT / "dataset_yolo" / "splits.json"
-DATA_YAML = REPO_ROOT / "dataset_yolo" / "data.yaml"
-RUNS_DIR = REPO_ROOT / "runs" / "detect"
-REPORT_PATH = REPO_ROOT / "reports" / "eval_summary.md"
+ANNOTATIONS_PATH = REPO_ROOT / "data" / "raw" / "annotations_v2.json"
+IMAGES_DIR = REPO_ROOT / "data" / "raw" / "images"
+SPLITS_PATH = REPO_ROOT / "data" / "yolo" / "splits.json"
+DATA_YAML = REPO_ROOT / "data" / "yolo" / "data.yaml"
+RUNS_DIR = REPO_ROOT / "outputs" / "runs" / "detect"
+REPORT_PATH = REPO_ROOT / "outputs" / "reports" / "eval_summary.md"
+CACHE_PATH = REPO_ROOT / "outputs" / "reports" / "eval_cache.json"
 
 IOU_THRESHOLD = 0.5
 CONF_THRESHOLD = 0.25
@@ -132,17 +133,24 @@ def run_subgroup_eval(model, test_names, all_data, conf, batch, limit):
         }
 
     image_paths = [str(IMAGES_DIR / name) for name in test_names]
-    results_stream = model.predict(
-        source=image_paths, conf=conf, batch=batch, stream=True, verbose=False
-    )
 
+    # Passing the WHOLE path list to a single predict() call blew up memory
+    # even with stream=True: Ultralytics allocated one array shaped
+    # (n_images, imgsz, imgsz, 3) up front - e.g. 11 GiB for 4320 images at
+    # imgsz=960. Chunking into `batch`-sized calls keeps memory bounded to
+    # one chunk at a time regardless of how big the test set is.
     preds_by_name = {}
     dims_by_name = {}
-    for result in results_stream:
-        name = Path(result.path).name
-        preds_by_name[name] = [tuple(b) for b in result.boxes.xyxy.tolist()]
-        h, w = result.orig_shape
-        dims_by_name[name] = (w, h)
+    for i in range(0, len(image_paths), batch):
+        chunk = image_paths[i : i + batch]
+        results_chunk = model.predict(
+            source=chunk, conf=conf, batch=batch, verbose=False
+        )
+        for result in results_chunk:
+            name = Path(result.path).name
+            preds_by_name[name] = [tuple(b) for b in result.boxes.xyxy.tolist()]
+            h, w = result.orig_shape
+            dims_by_name[name] = (w, h)
 
     subgroups = {
         "rain=sim": {"tp": 0, "fp": 0, "fn": 0, "n_imgs": 0},
@@ -212,6 +220,36 @@ def run_subgroup_eval(model, test_names, all_data, conf, batch, limit):
     return overall, subgroups, size_groups, leg_groups, len(test_names)
 
 
+def load_cache(weights):
+    """Load reports/eval_cache.json if it exists and matches these weights.
+    Running --skip-subgroup and --subgroup-only as two separate process
+    invocations is how the full 4320-image test set gets fully evaluated on
+    a memory-limited machine without OOM (each run only does ONE heavy pass;
+    running both in the same process is what crashed - the OS reclaims
+    everything between separate runs, plain Python gc doesn't reliably).
+    This cache is what lets the second run's report include the first run's
+    results instead of overwriting them."""
+    if not CACHE_PATH.exists():
+        return {}
+    try:
+        with open(CACHE_PATH, encoding="utf-8") as f:
+            cache = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return {}
+    if cache.get("weights") != str(weights):
+        print(
+            f"[aviso] cache em {CACHE_PATH} era de outros pesos ({cache.get('weights')}) - ignorando, começando do zero."
+        )
+        return {}
+    return cache
+
+
+def save_cache(cache):
+    CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(CACHE_PATH, "w", encoding="utf-8") as f:
+        json.dump(cache, f, indent=2, ensure_ascii=False)
+
+
 def precision_recall(counts):
     tp, fp, fn = counts["tp"], counts["fp"], counts["fn"]
     precision = tp / (tp + fp) if (tp + fp) else float("nan")
@@ -222,6 +260,101 @@ def precision_recall(counts):
 def recall_only(counts):
     tp, fn = counts["tp"], counts["fn"]
     return tp / (tp + fn) if (tp + fn) else float("nan")
+
+
+def render_report(weights, test_total, iou_threshold, conf, cache):
+    """Builds the markdown report from whatever is in `cache` - which may
+    mix an `official` block from one run with a `subgroup` block from a
+    separate run (see load_cache/save_cache)."""
+    official = cache.get("official")
+    subgroup = cache.get("subgroup")
+
+    lines = ["# Avaliação no split de teste\n"]
+    lines.append(f"- Pesos: `{weights}`")
+    n_used = subgroup["n_used"] if subgroup else 0
+    lines.append(
+        f"- Imagens no split de teste: {test_total} (avaliadas na checagem por subgrupo: {n_used})\n"
+    )
+
+    lines.append("## Métricas oficiais (Ultralytics `model.val(split='test')`)")
+    if official is None:
+        lines.append(
+            "- Ainda não calculado nesta máquina (rode sem `--subgroup-only`, ou com `--skip-subgroup` sozinho).\n"
+        )
+    else:
+        lines.append(f"- Precision: {official['precision']:.3f}")
+        lines.append(f"- Recall: {official['recall']:.3f}")
+        lines.append(f"- mAP50: {official['map50']:.3f}")
+        lines.append(f"- mAP50-95: {official['map50_95']:.3f}\n")
+
+    if subgroup is None:
+        lines.append("## Checagem por subgrupo")
+        lines.append(
+            "- Ainda não calculada nesta máquina (rode com `--subgroup-only`, sem `--skip-subgroup`).\n"
+        )
+    else:
+        overall = subgroup["overall"]
+        subgroups = subgroup["subgroups"]
+        size_groups = subgroup["size_groups"]
+        leg_groups = subgroup["leg_groups"]
+
+        p, r = precision_recall(overall)
+        lines.append(
+            f"## Checagem cruzada (matching por IoU>={iou_threshold}, conf>={conf})"
+        )
+        lines.append(f"- TP={overall['tp']} FP={overall['fp']} FN={overall['fn']}")
+        lines.append(f"- Precision: {p:.3f}  Recall: {r:.3f}\n")
+
+        lines.append("## Por condição de chuva")
+        lines.append("| Grupo | Imagens | TP | FP | FN | Precision | Recall |")
+        lines.append("|---|---|---|---|---|---|---|")
+        for key in ("rain=não", "rain=sim"):
+            c = subgroups[key]
+            p, r = precision_recall(c)
+            lines.append(
+                f"| {key} | {c['n_imgs']} | {c['tp']} | {c['fp']} | {c['fn']} | {p:.3f} | {r:.3f} |"
+            )
+        lines.append("")
+
+        lines.append("## Por período do dia")
+        lines.append("| Grupo | Imagens | TP | FP | FN | Precision | Recall |")
+        lines.append("|---|---|---|---|---|---|---|")
+        for key in ("time=morning", "time=afternoon", "time=evening", "time=night"):
+            c = subgroups[key]
+            p, r = precision_recall(c)
+            lines.append(
+                f"| {key} | {c['n_imgs']} | {c['tp']} | {c['fp']} | {c['fn']} | {p:.3f} | {r:.3f} |"
+            )
+        lines.append("")
+
+        lines.append(
+            f"## Por tamanho da placa (área bbox/imagem — cortes: {SIZE_CUTOFFS})"
+        )
+        lines.append(
+            '- Sem coluna de precision/FP aqui: falso positivo não corresponde a nenhuma placa real, então não tem "tamanho" próprio.'
+        )
+        lines.append("| Grupo | TP | FN | Recall |")
+        lines.append("|---|---|---|---|")
+        for key in ("placa pequena", "placa média", "placa grande"):
+            c = size_groups[key]
+            lines.append(f"| {key} | {c['tp']} | {c['fn']} | {recall_only(c):.3f} |")
+        lines.append("")
+
+        lines.append("## Por legibilidade da placa (`leg` do dataset original)")
+        lines.append(
+            "- `leg=0` (Illegible) não aparece: o Passo 2 já descartou toda imagem com alguma placa ilegível."
+        )
+        lines.append(
+            "- Mesma ressalva do tamanho: sem precision/FP, falso positivo não tem legibilidade própria."
+        )
+        lines.append("| Grupo | TP | FN | Recall |")
+        lines.append("|---|---|---|---|")
+        for key in ("leg=1 (Poor)", "leg=2 (Good)", "leg=3 (Perfect)"):
+            c = leg_groups[key]
+            lines.append(f"| {key} | {c['tp']} | {c['fn']} | {recall_only(c):.3f} |")
+        lines.append("")
+
+    return lines
 
 
 def main():
@@ -237,7 +370,24 @@ def main():
         default=None,
         help="avaliar só as N primeiras imagens do test (debug)",
     )
+    parser.add_argument(
+        "--skip-subgroup",
+        action="store_true",
+        help="roda só o val() oficial do Ultralytics (leve, um pass só). Rode --subgroup-only "
+        "depois (execução separada) pra completar o relatório sem estourar memória.",
+    )
+    parser.add_argument(
+        "--subgroup-only",
+        action="store_true",
+        help="roda só a checagem por subgrupo (pula o val() oficial). Combine com --skip-subgroup "
+        "rodado antes (execução separada) pra ter o relatório completo em duas passadas leves.",
+    )
     args = parser.parse_args()
+
+    if args.skip_subgroup and args.subgroup_only:
+        raise RuntimeError(
+            "--skip-subgroup e --subgroup-only são mutuamente exclusivos"
+        )
 
     weights = Path(args.weights)
     if not weights.exists():
@@ -249,102 +399,46 @@ def main():
         splits = json.load(f)
     test_names = splits["test"]
 
+    cache = load_cache(str(weights))
+    cache["weights"] = str(weights)
+
     print(f"Pesos: {weights}")
-    if args.limit:
-        print(
-            f"--limit {args.limit}: pulando o val() oficial (ele sempre roda no split inteiro) e indo direto pro subgrupo."
-        )
-        model = YOLO(str(weights))
-        official = None
-    else:
+
+    model = None
+    if not args.subgroup_only:
         print(
             f"Rodando val() oficial do Ultralytics no split de teste ({len(test_names)} imagens)..."
         )
         model, official = run_official_val(str(weights), args.batch)
+        cache["official"] = official
 
-    n_eval = len(test_names) if not args.limit else min(args.limit, len(test_names))
-    print(
-        f"\nRodando avaliação por subgrupo (rain/time/tamanho/legibilidade) em {n_eval} imagens, IoU>={IOU_THRESHOLD}, conf>={args.conf}..."
-    )
-    overall, subgroups, size_groups, leg_groups, n_used = run_subgroup_eval(
-        model, test_names, all_data, args.conf, args.batch, args.limit
-    )
-
-    lines = ["# Avaliação no split de teste\n"]
-    lines.append(f"- Pesos: `{weights}`")
-    lines.append(
-        f"- Imagens no split de teste: {len(test_names)} (avaliadas nesta rodada: {n_used})\n"
-    )
-
-    lines.append("## Métricas oficiais (Ultralytics `model.val(split='test')`)")
-    if official is None:
-        lines.append(
-            "- Pulado (rodando com `--limit`, é só o debug rápido por subgrupo).\n"
+    if not args.skip_subgroup:
+        n_eval = len(test_names) if not args.limit else min(args.limit, len(test_names))
+        print(
+            f"\nRodando avaliação por subgrupo (rain/time/tamanho/legibilidade) em {n_eval} imagens, IoU>={IOU_THRESHOLD}, conf>={args.conf}..."
         )
-    else:
-        lines.append(f"- Precision: {official['precision']:.3f}")
-        lines.append(f"- Recall: {official['recall']:.3f}")
-        lines.append(f"- mAP50: {official['map50']:.3f}")
-        lines.append(f"- mAP50-95: {official['map50_95']:.3f}\n")
-
-    p, r = precision_recall(overall)
-    lines.append(
-        f"## Checagem cruzada (matching por IoU>={IOU_THRESHOLD}, conf>={args.conf})"
-    )
-    lines.append(f"- TP={overall['tp']} FP={overall['fp']} FN={overall['fn']}")
-    lines.append(f"- Precision: {p:.3f}  Recall: {r:.3f}\n")
-
-    lines.append("## Por condição de chuva")
-    lines.append("| Grupo | Imagens | TP | FP | FN | Precision | Recall |")
-    lines.append("|---|---|---|---|---|---|---|")
-    for key in ("rain=não", "rain=sim"):
-        c = subgroups[key]
-        p, r = precision_recall(c)
-        lines.append(
-            f"| {key} | {c['n_imgs']} | {c['tp']} | {c['fp']} | {c['fn']} | {p:.3f} | {r:.3f} |"
+        if model is None:
+            model = YOLO(str(weights))
+        overall, subgroups, size_groups, leg_groups, n_used = run_subgroup_eval(
+            model, test_names, all_data, args.conf, args.batch, args.limit
         )
-    lines.append("")
+        cache["subgroup"] = {
+            "overall": overall,
+            "subgroups": subgroups,
+            "size_groups": size_groups,
+            "leg_groups": leg_groups,
+            "n_used": n_used,
+        }
 
-    lines.append("## Por período do dia")
-    lines.append("| Grupo | Imagens | TP | FP | FN | Precision | Recall |")
-    lines.append("|---|---|---|---|---|---|---|")
-    for key in ("time=morning", "time=afternoon", "time=evening", "time=night"):
-        c = subgroups[key]
-        p, r = precision_recall(c)
-        lines.append(
-            f"| {key} | {c['n_imgs']} | {c['tp']} | {c['fp']} | {c['fn']} | {p:.3f} | {r:.3f} |"
-        )
-    lines.append("")
+    save_cache(cache)
 
-    lines.append(f"## Por tamanho da placa (área bbox/imagem — cortes: {SIZE_CUTOFFS})")
-    lines.append(
-        '- Sem coluna de precision/FP aqui: falso positivo não corresponde a nenhuma placa real, então não tem "tamanho" próprio.'
-    )
-    lines.append("| Grupo | TP | FN | Recall |")
-    lines.append("|---|---|---|---|")
-    for key in ("placa pequena", "placa média", "placa grande"):
-        c = size_groups[key]
-        lines.append(f"| {key} | {c['tp']} | {c['fn']} | {recall_only(c):.3f} |")
-    lines.append("")
-
-    lines.append("## Por legibilidade da placa (`leg` do dataset original)")
-    lines.append(
-        "- `leg=0` (Illegible) não aparece: o Passo 2 já descartou toda imagem com alguma placa ilegível."
-    )
-    lines.append(
-        "- Mesma ressalva do tamanho: sem precision/FP, falso positivo não tem legibilidade própria."
-    )
-    lines.append("| Grupo | TP | FN | Recall |")
-    lines.append("|---|---|---|---|")
-    for key in ("leg=1 (Poor)", "leg=2 (Good)", "leg=3 (Perfect)"):
-        c = leg_groups[key]
-        lines.append(f"| {key} | {c['tp']} | {c['fn']} | {recall_only(c):.3f} |")
-    lines.append("")
+    lines = render_report(weights, len(test_names), IOU_THRESHOLD, args.conf, cache)
 
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     REPORT_PATH.write_text("\n".join(lines), encoding="utf-8")
     print("\n".join(lines))
     print(f"\nRelatório salvo em {REPORT_PATH}")
+    print(f"Cache salvo em {CACHE_PATH}")
 
 
 if __name__ == "__main__":

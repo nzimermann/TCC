@@ -55,12 +55,13 @@ SMOKE_TEST_N_IMAGES = 10
 SMOKE_TEST_EPOCHS = 3
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DATASET_DIR = REPO_ROOT / "dataset_yolo"
+DATASET_DIR = REPO_ROOT / "data" / "yolo"
 DATA_YAML = DATASET_DIR / "data.yaml"
 TRAIN_CONFIG_PATH = REPO_ROOT / "configs" / "train.yaml"
-RUNS_DIR = REPO_ROOT / "runs" / "detect"
+RUNS_DIR = REPO_ROOT / "outputs" / "runs" / "detect"
 
-SMOKE_DIR = REPO_ROOT / "dataset_yolo_smoke"
+SMOKE_DIR = REPO_ROOT / "data" / "yolo_smoke"
+PRETRAINED_MODEL = REPO_ROOT / "weights" / "yolo11n.pt"
 
 
 def build_smoke_subset(n_images: int) -> Path:
@@ -221,7 +222,7 @@ def main():
             "pipeline roda e que os checkpoints .pt vão sendo gravados a cada época. ***\n"
         )
         data_yaml = build_smoke_subset(args.n)
-        model_name = "yolo11n.pt"
+        model_name = str(PRETRAINED_MODEL)
         train_kwargs = dict(
             data=str(data_yaml),
             epochs=args.smoke_epochs,
@@ -241,7 +242,7 @@ def main():
             raise RuntimeError(
                 f"{DATA_YAML} não existe — rode o Passo 4 (convert_annotations.py) primeiro."
             )
-        model_name = cfg["model"]
+        model_name = str(REPO_ROOT / cfg["model"])
         train_kwargs = dict(
             data=str(DATA_YAML),
             epochs=cfg["epochs"],
