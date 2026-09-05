@@ -1,10 +1,11 @@
 """Exploratory data analysis over LPLCv2's annotations_v2.json.
 
 Reads the full annotation file (no sampling) and:
-  - reports distributions used to decide the filtering rules (Passo 2)
+  - reports distributions used to decide the filtering rules (see filters.py)
   - measures plate bbox size relative to image size (drives the imgsz choice)
   - simulates the effect of the proposed filters (leg == 0, faulty == True)
-  - saves plots to reports/figures/ and a text summary to reports/eda_summary.md
+  - saves plots to outputs/reports/figures/ and a text summary to
+    outputs/reports/eda_summary.md
 
 Usage:
     .venv/Scripts/python.exe src/data_prep/eda.py
@@ -242,7 +243,7 @@ def main():
     )
     lines.append("")
 
-    lines.append("## Efeito dos filtros propostos (Passo 2)")
+    lines.append("## Efeito dos filtros propostos (ver filters.py)")
     lines.append(f"- Imagens descartadas por `faulty=true`: {dropped_faulty_img}")
     lines.append(
         f"- Imagens descartadas por conter ao menos 1 placa `leg=0`: {dropped_illegible_img}"

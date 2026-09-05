@@ -1,6 +1,6 @@
 """Filtering rules applied before converting annotations to YOLO format.
 
-Rules (decided in Passo 2, confirmed by the user):
+Rules:
   - drop the whole image if it has any illegible plate (leg == 0)
   - drop the whole image if the capturing camera was faulty (faulty == true)
 

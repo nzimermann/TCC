@@ -1,21 +1,21 @@
-"""Convert LPLCv2 annotations + the Passo 3 splits into a YOLO detection dataset.
+"""Convert LPLCv2 annotations + the camera-based splits into a YOLO detection dataset.
 
-Reads dataset_yolo/splits.json (Passo 3) and data/annotations_v2.json, and
-for every image in every split:
+Reads data/yolo/splits.json (written by build_splits.py) and
+data/raw/annotations_v2.json, and for every image in every split:
   - computes the plate bbox(es) from `xy` (the xmin/ymin/xmax/ymax logic
     already validated visually with visualize_annotations.py)
   - normalizes them to YOLO format `<class> <xc> <yc> <w> <h>`, all in
     [0, 1] relative to the image's *actual* width/height (resolutions vary
     by camera, so this can't be a fixed constant)
   - hardlinks (falls back to copy) the source image into
-    dataset_yolo/images/<split>/
-  - writes the matching label file into dataset_yolo/labels/<split>/
+    data/yolo/images/<split>/
+  - writes the matching label file into data/yolo/labels/<split>/
 
-Also writes dataset_yolo/data.yaml, ready for `YOLO(...).train(data=...)`.
+Also writes data/yolo/data.yaml, ready for `YOLO(...).train(data=...)`.
 
-Images in splits.json already passed the Passo 2 filter (no faulty=true, no
-leg=0 plates), so every annotation left here is used as-is - no
-per-annotation filtering happens in this script.
+Images in splits.json already passed build_splits.py's filter (no
+faulty=true, no leg=0 plates), so every annotation left here is used as-is -
+no per-annotation filtering happens in this script.
 
 Usage:
     .venv/Scripts/python.exe src/data_prep/convert_annotations.py
@@ -119,7 +119,7 @@ def convert_split(split_name, filenames, all_data):
             bbox_to_yolo_line(*xy_to_bbox(ann["xy"]), img_w, img_h) for ann in anns
         ]
         if not lines:
-            # shouldn't happen after Passo 2's filter, but skip defensively
+            # shouldn't happen after build_splits.py's filter, but skip defensively
             print(f"[aviso] sem placas válidas, pulando: {name}")
             n_skipped += 1
             continue

@@ -1,12 +1,12 @@
-"""Passo 8 — real-time plate detection from a webcam (or video file/URL).
+"""Real-time plate detection from a webcam (or video file/URL).
 
 Opens `--source` (default 0 = default webcam) with OpenCV, runs the trained
 detector frame by frame, and draws the boxes live. Press 'q' or Esc to quit.
 
-Known limitation (see PLANO_PROJETO.md): the dataset is all fixed
-CCTV-style cameras (elevated, fixed angle/distance). A handheld/laptop
-webcam is a different domain, so don't be surprised if this performs worse
-here than the test-set metrics suggest.
+Known limitation: the training dataset is all fixed CCTV-style cameras
+(elevated, fixed angle/distance). A handheld/laptop webcam is a different
+domain, so don't be surprised if this performs worse here than the test-set
+metrics suggest.
 
 Usage:
     .venv/Scripts/python.exe src/inference/webcam_demo.py
@@ -56,14 +56,14 @@ def main():
 
     if not args.weights.exists():
         raise RuntimeError(
-            f"pesos não encontrados: {args.weights} — rode o Passo 7 (export_model.py) primeiro."
+            f"pesos não encontrados: {args.weights} — rode export_model.py primeiro."
         )
 
     print(f"Pesos: {args.weights}")
     print(
         "Aviso: o dataset de treino é todo de câmeras CFTV fixas (ângulo/altura/distância "
         "diferentes de uma webcam de notebook). Não estranhe se o desempenho aqui for pior "
-        "que as métricas do split de teste (ver PLANO_PROJETO.md).\n"
+        "que as métricas do split de teste.\n"
     )
 
     model = YOLO(str(args.weights))

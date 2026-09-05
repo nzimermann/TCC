@@ -5,18 +5,17 @@ Two layers of evaluation:
      precision/recall/mAP50/mAP50-95 numbers, the ones that go in the TCC.
   2. A custom IoU-matching pass broken down by subgroup (rain vs no rain,
      time of day, plate size), because Ultralytics' own val() doesn't slice
-     metrics by dataset metadata. This answers the question from
-     PLANO_PROJETO.md Passo 6: does the model do worse on small/distant
-     plates or at night/in the rain?
+     metrics by dataset metadata - this is the only way to see whether the
+     model does worse on small/distant plates or at night/in the rain.
 
 Ground truth for the subgroup pass comes straight from
-data/annotations_v2.json (same xy -> bbox logic used everywhere else in
-src/data_prep), matched against the test split list in dataset_yolo/splits.json
+data/raw/annotations_v2.json (same xy -> bbox logic used everywhere else in
+src/data_prep), matched against the test split list in data/yolo/splits.json
 - not from re-reading the YOLO .txt labels, so rain/time metadata is available.
 
 Usage:
-    .venv/Scripts/python.exe src/evaluation/evaluate.py --weights runs/detect/full_run/weights/best.pt
-    .venv/Scripts/python.exe src/evaluation/evaluate.py --weights runs/detect/smoke_test/weights/best.pt --limit 50
+    .venv/Scripts/python.exe src/evaluation/evaluate.py --weights outputs/runs/detect/full_run/weights/best.pt
+    .venv/Scripts/python.exe src/evaluation/evaluate.py --weights outputs/runs/detect/smoke_test/weights/best.pt --limit 50
 """
 
 import argparse
@@ -38,7 +37,7 @@ IOU_THRESHOLD = 0.5
 CONF_THRESHOLD = 0.25
 
 # area(bbox) / area(image) cutoffs for the small/medium/large plate buckets,
-# based on the full-dataset distribution measured in reports/eda_summary.md
+# based on the full-dataset distribution measured in outputs/reports/eda_summary.md
 # (median ~0.003, p10 ~0.0012, p90 ~0.0166).
 SIZE_CUTOFFS = (0.0015, 0.008)
 
@@ -165,8 +164,8 @@ def run_subgroup_eval(model, test_names, all_data, conf, batch, limit):
         "placa média": {"tp": 0, "fn": 0},
         "placa grande": {"tp": 0, "fn": 0},
     }
-    # leg=0 (Illegible) never appears here: Passo 2 already dropped every
-    # image containing one, so the test set only has leg in {1, 2, 3}.
+    # leg=0 (Illegible) never appears here: build_splits.py's filter already
+    # dropped every image containing one, so the test set only has leg in {1, 2, 3}.
     leg_groups = {
         "leg=1 (Poor)": {"tp": 0, "fn": 0},
         "leg=2 (Good)": {"tp": 0, "fn": 0},
@@ -211,7 +210,7 @@ def run_subgroup_eval(model, test_names, all_data, conf, batch, limit):
         for i, leg in enumerate(gt["legs"]):
             leg_key = f"leg={leg} ({LEG_LABELS.get(leg, '?')})"
             if leg_key not in leg_groups:
-                continue  # leg=0 shouldn't occur post-Passo 2, but don't crash if it does
+                continue  # leg=0 shouldn't occur after filtering, but don't crash if it does
             if i in matched_gt:
                 leg_groups[leg_key]["tp"] += 1
             else:
@@ -221,7 +220,7 @@ def run_subgroup_eval(model, test_names, all_data, conf, batch, limit):
 
 
 def load_cache(weights):
-    """Load reports/eval_cache.json if it exists and matches these weights.
+    """Load outputs/reports/eval_cache.json if it exists and matches these weights.
     Running --skip-subgroup and --subgroup-only as two separate process
     invocations is how the full 4320-image test set gets fully evaluated on
     a memory-limited machine without OOM (each run only does ONE heavy pass;
@@ -342,7 +341,7 @@ def render_report(weights, test_total, iou_threshold, conf, cache):
 
         lines.append("## Por legibilidade da placa (`leg` do dataset original)")
         lines.append(
-            "- `leg=0` (Illegible) não aparece: o Passo 2 já descartou toda imagem com alguma placa ilegível."
+            "- `leg=0` (Illegible) não aparece: build_splits.py já descartou toda imagem com alguma placa ilegível."
         )
         lines.append(
             "- Mesma ressalva do tamanho: sem precision/FP, falso positivo não tem legibilidade própria."

@@ -5,9 +5,10 @@ camera go to the same split, so no camera leaks between train and
 val/test (same rationale as the dataset authors' own `cam_sep` scenario,
 just applied to full-image detection instead of plate crops).
 
-Images with `cam == null` have no camera to group by. Per the user's
-decision, this is fine — they carry no leakage risk either way, so each is
-treated as its own singleton group and can land in any split.
+Images with `cam == null` have no camera to group by, but that's fine: with
+no camera identity to begin with, there's nothing for them to leak between
+splits, so each is treated as its own singleton group and can land in any
+split.
 
 Balancing uses a greedy "largest group first, assign to the split furthest
 below its target size" heuristic (a form of Longest-Processing-Time
@@ -15,9 +16,9 @@ scheduling), because camera sizes are very skewed (median 21 images/camera,
 one camera alone has 3,603) — a naive random split over cameras would
 produce wildly uneven split sizes.
 
-Output: dataset_yolo/splits.json -> {"train": [...], "val": [...], "test": [...]}
-(filenames only; Passo 4 combines this with annotations_v2.json to write the
-actual YOLO images/labels folders).
+Output: data/yolo/splits.json -> {"train": [...], "val": [...], "test": [...]}
+(filenames only; convert_annotations.py combines this with
+annotations_v2.json to write the actual YOLO images/labels folders).
 
 Usage:
     .venv/Scripts/python.exe src/data_prep/build_splits.py
@@ -112,7 +113,7 @@ def main():
     lines.append(f"- Seed: {args.seed}")
     lines.append(f"- Proporções alvo: {ratios}")
     lines.append(
-        f"- Total de imagens (após filtro do Passo 2): {sum(len(v) for v in assignment.values())}"
+        f"- Total de imagens (após o filtro de filters.py): {sum(len(v) for v in assignment.values())}"
     )
     lines.append("")
     for split in SPLIT_NAMES:

@@ -5,12 +5,12 @@ Two modes, controlled by ONE toggle (edit the constant below, or pass
 
   - SMOKE_TEST = False (default): real run. Reads hyperparameters from
     configs/train.yaml (imgsz=960, epochs=..., batch=16, ...) and trains on
-    the full dataset_yolo/ split (20,162 train images). This is meant to run
-    on Kaggle/Colab (no local GPU) — see PLANO_PROJETO.md, Passo 5.
+    the full data/yolo/ split (20,162 train images). Meant to run on
+    Kaggle/Colab, since a full run takes hours of GPU time.
 
   - SMOKE_TEST = True: fast pipeline check. Builds a tiny subset
     (SMOKE_TEST_N_IMAGES images, default 10) from the already-converted
-    dataset_yolo/images/train + labels/train, and trains for
+    data/yolo/images/train + labels/train, and trains for
     SMOKE_TEST_EPOCHS epochs (default 3). The only goal is confirming the
     pipeline runs start to finish and produces real .pt checkpoints along
     the way — the resulting model is not meant to be good. Train and val
@@ -21,14 +21,14 @@ Two modes, controlled by ONE toggle (edit the constant below, or pass
     committing to a long run (see notebooks/kaggle_train.ipynb).
 
 Extra safety nets (added after a real Kaggle run got killed by the 12h
-session cap with nothing recoverable — see PLANO_PROJETO.md):
+session cap with nothing recoverable):
   - Every run prints a line after each epoch confirming last.pt/best.pt
     were just written, with elapsed time — so a live log makes it obvious
     checkpoints ARE landing on disk, epoch by epoch, not just at the end.
   - --live-copy-dir: also copies last.pt/best.pt to a flat directory of
     your choice after every epoch, in addition to Ultralytics' own
-    runs/detect/<name>/weights/ — useful when that directory is nested
-    somewhere a platform's output capture might not reach reliably.
+    outputs/runs/detect/<name>/weights/ — useful when that directory is
+    nested somewhere a platform's output capture might not reach reliably.
   - --resume: continue an interrupted run from its last.pt, instead of
     starting over. Needs the checkpoint's *whole* run folder (last.pt +
     the args.yaml next to it), not just the .pt file alone.
@@ -37,7 +37,7 @@ Usage:
     .venv/Scripts/python.exe src/training/train.py                 # full run (needs configs/train.yaml)
     .venv/Scripts/python.exe src/training/train.py --smoke-test     # fast local sanity check
     .venv/Scripts/python.exe src/training/train.py --smoke-test --n 300 --smoke-epochs 5 --live-copy-dir /kaggle/working/checkpoints
-    .venv/Scripts/python.exe src/training/train.py --resume runs/detect/full_run/weights/last.pt
+    .venv/Scripts/python.exe src/training/train.py --resume outputs/runs/detect/full_run/weights/last.pt
 """
 
 import argparse
@@ -75,7 +75,7 @@ def build_smoke_subset(n_images: int) -> Path:
     if len(label_files) < n_images:
         raise RuntimeError(
             f"pedi {n_images} imagens para o smoke test, mas só achei {len(label_files)} "
-            f"em {src_labels} — rode o Passo 4 (convert_annotations.py) primeiro."
+            f"em {src_labels} — rode convert_annotations.py primeiro."
         )
 
     if SMOKE_DIR.exists():
@@ -111,7 +111,7 @@ def build_smoke_subset(n_images: int) -> Path:
 def make_checkpoint_callback(live_copy_dir: Path | None):
     """Prints proof-of-life after every epoch and, if `live_copy_dir` is
     set, also copies last.pt/best.pt there — so checkpoints are easy to
-    find and grab manually mid-run without digging through runs/detect/."""
+    find and grab manually mid-run without digging through outputs/runs/detect/."""
     start_time = time.time()
 
     def on_model_save(trainer):
@@ -240,7 +240,7 @@ def main():
             cfg = yaml.safe_load(f)
         if not DATA_YAML.exists():
             raise RuntimeError(
-                f"{DATA_YAML} não existe — rode o Passo 4 (convert_annotations.py) primeiro."
+                f"{DATA_YAML} não existe — rode convert_annotations.py primeiro."
             )
         model_name = str(REPO_ROOT / cfg["model"])
         train_kwargs = dict(

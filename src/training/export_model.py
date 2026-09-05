@@ -1,4 +1,4 @@
-"""Passo 7 — promote a training run's best.pt to the project's "official" model.
+"""Promote a training run's best.pt to the project's "official" model.
 
 Copies <run>/weights/best.pt to models/plate_detector.pt and sanity-checks
 that the copy actually loads back with Ultralytics (same single class,
@@ -6,8 +6,8 @@ that the copy actually loads back with Ultralytics (same single class,
 from the wrong run is a bad time to discover later, at webcam-demo time.
 
 Usage:
-    .venv/Scripts/python.exe src/training/export_model.py --weights runs/detect/full_run/weights/best.pt
-    .venv/Scripts/python.exe src/training/export_model.py --weights runs/detect/smoke_test/weights/best.pt
+    .venv/Scripts/python.exe src/training/export_model.py --weights outputs/runs/detect/full_run/weights/best.pt
+    .venv/Scripts/python.exe src/training/export_model.py --weights outputs/runs/detect/smoke_test/weights/best.pt
 """
 
 import argparse
@@ -23,7 +23,7 @@ DEFAULT_OUTPUT = REPO_ROOT / "models" / "plate_detector.pt"
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--weights", required=True, help="ex: runs/detect/full_run/weights/best.pt"
+        "--weights", required=True, help="ex: outputs/runs/detect/full_run/weights/best.pt"
     )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     args = parser.parse_args()

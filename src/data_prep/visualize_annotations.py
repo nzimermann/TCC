@@ -2,8 +2,8 @@
 
 Run this yourself and look at the saved image(s): if the drawn boxes don't
 line up with the plates, the xy -> bbox interpretation used everywhere else
-in src/data_prep (filters.py, build_splits.py, and the upcoming
-convert_annotations.py) is wrong and needs fixing before Passo 4.
+in src/data_prep (filters.py, build_splits.py, convert_annotations.py) is
+wrong and needs fixing before relying on it for training labels.
 
 Interpretation being checked: `xy` is 4 (x, y) corner pairs
 [x1,y1, x2,y2, x3,y3, x4,y4], in pixel coordinates of the original image,
