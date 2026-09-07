@@ -219,8 +219,8 @@ def run_subgroup_eval(model, test_names, all_data, conf, batch, limit):
     return overall, subgroups, size_groups, leg_groups, len(test_names)
 
 
-def load_cache(weights):
-    """Load outputs/reports/eval_cache.json if it exists and matches these weights.
+def load_cache(weights, cache_path):
+    """Load `cache_path` if it exists and matches these weights.
     Running --skip-subgroup and --subgroup-only as two separate process
     invocations is how the full 4320-image test set gets fully evaluated on
     a memory-limited machine without OOM (each run only does ONE heavy pass;
@@ -228,24 +228,24 @@ def load_cache(weights):
     everything between separate runs, plain Python gc doesn't reliably).
     This cache is what lets the second run's report include the first run's
     results instead of overwriting them."""
-    if not CACHE_PATH.exists():
+    if not cache_path.exists():
         return {}
     try:
-        with open(CACHE_PATH, encoding="utf-8") as f:
+        with open(cache_path, encoding="utf-8") as f:
             cache = json.load(f)
     except (json.JSONDecodeError, OSError):
         return {}
     if cache.get("weights") != str(weights):
         print(
-            f"[aviso] cache em {CACHE_PATH} era de outros pesos ({cache.get('weights')}) - ignorando, começando do zero."
+            f"[aviso] cache em {cache_path} era de outros pesos ({cache.get('weights')}) - ignorando, começando do zero."
         )
         return {}
     return cache
 
 
-def save_cache(cache):
-    CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(CACHE_PATH, "w", encoding="utf-8") as f:
+def save_cache(cache, cache_path):
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(cache_path, "w", encoding="utf-8") as f:
         json.dump(cache, f, indent=2, ensure_ascii=False)
 
 
@@ -381,6 +381,20 @@ def main():
         help="roda só a checagem por subgrupo (pula o val() oficial). Combine com --skip-subgroup "
         "rodado antes (execução separada) pra ter o relatório completo em duas passadas leves.",
     )
+    parser.add_argument(
+        "--report",
+        type=Path,
+        default=REPORT_PATH,
+        help="caminho do relatório de saída (default: outputs/reports/eval_summary.md) - "
+        "use um caminho diferente pra comparar vários modelos sem sobrescrever relatórios anteriores.",
+    )
+    parser.add_argument(
+        "--cache",
+        type=Path,
+        default=CACHE_PATH,
+        help="caminho do cache de resultados (default: outputs/reports/eval_cache.json) - "
+        "combine com --report ao comparar vários modelos, senão os pesos não baterão com o cache existente.",
+    )
     args = parser.parse_args()
 
     if args.skip_subgroup and args.subgroup_only:
@@ -398,7 +412,7 @@ def main():
         splits = json.load(f)
     test_names = splits["test"]
 
-    cache = load_cache(str(weights))
+    cache = load_cache(str(weights), args.cache)
     cache["weights"] = str(weights)
 
     print(f"Pesos: {weights}")
@@ -429,15 +443,15 @@ def main():
             "n_used": n_used,
         }
 
-    save_cache(cache)
+    save_cache(cache, args.cache)
 
     lines = render_report(weights, len(test_names), IOU_THRESHOLD, args.conf, cache)
 
-    REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    REPORT_PATH.write_text("\n".join(lines), encoding="utf-8")
+    args.report.parent.mkdir(parents=True, exist_ok=True)
+    args.report.write_text("\n".join(lines), encoding="utf-8")
     print("\n".join(lines))
-    print(f"\nRelatório salvo em {REPORT_PATH}")
-    print(f"Cache salvo em {CACHE_PATH}")
+    print(f"\nRelatório salvo em {args.report}")
+    print(f"Cache salvo em {args.cache}")
 
 
 if __name__ == "__main__":
