@@ -47,6 +47,13 @@ def main():
     )
     parser.add_argument("--conf", type=float, default=0.4)
     parser.add_argument(
+        "--iou",
+        type=float,
+        default=0.7,
+        help="limiar de IoU do NMS (padrão do Ultralytics). Baixe (ex: 0.4) se o modelo "
+        "desenhar várias caixas sobre a mesma placa.",
+    )
+    parser.add_argument(
         "--imgsz",
         type=int,
         default=640,
@@ -83,7 +90,9 @@ def main():
                 print("Fonte de vídeo terminou ou falhou ao ler o frame.")
                 break
 
-            predictions = model(frame, conf=args.conf, imgsz=args.imgsz, verbose=False)
+            predictions = model(
+                frame, conf=args.conf, iou=args.iou, imgsz=args.imgsz, verbose=False
+            )
             result = (
                 predictions[0]
                 if isinstance(predictions, (list, tuple))
