@@ -1,7 +1,6 @@
 data/
 outputs/runs/
 assets/
-*.pt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
